@@ -28,8 +28,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.Future;
 import java.util.regex.Pattern;
 
-import com.google.bigtable.admin.v2.GetTableRequest;
-import io.grpc.Status;
 import org.apache.hadoop.hbase.CacheEvictionStats;
 import org.apache.hadoop.hbase.ClusterMetrics;
 import org.apache.hadoop.hbase.ClusterMetrics.Option;
@@ -66,16 +64,19 @@ import org.apache.hadoop.hbase.util.Bytes;
 
 import com.google.bigtable.admin.v2.CreateTableRequest;
 import com.google.bigtable.admin.v2.DeleteTableRequest;
-import com.google.bigtable.admin.v2.DropRowRangeRequest;
+import com.google.bigtable.admin.v2.GetTableRequest;
 import com.google.bigtable.admin.v2.ListSnapshotsRequest;
 import com.google.bigtable.admin.v2.ListSnapshotsResponse;
 import com.google.bigtable.admin.v2.ModifyColumnFamiliesRequest;
 import com.google.bigtable.admin.v2.ModifyColumnFamiliesRequest.Modification;
 import com.google.bigtable.admin.v2.Snapshot;
 import com.google.bigtable.admin.v2.Table;
+import com.google.cloud.bigtable.hbase2_x.adapters.admin.BigtableAdminAdaptor;
 import com.google.cloud.bigtable.hbase2_x.adapters.admin.TableAdapter2x;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+
+import io.grpc.Status;
 
 
 /**
@@ -86,10 +87,13 @@ import com.google.common.util.concurrent.ListenableFuture;
 public class BigtableAdmin extends AbstractBigtableAdmin {
 
   private final TableAdapter2x tableAdapter2x;
-
+  private BigtableAdminAdaptor bigtableAdminAdaptor;
+  
   public BigtableAdmin(AbstractBigtableConnection connection) throws IOException {
     super(connection);
     tableAdapter2x = new TableAdapter2x(connection.getSession().getOptions());
+    bigtableAdminAdaptor = new BigtableAdminAdaptor(new BigtableTableAdminClient(
+        connection.getSession().getTableAdminClient()) , bigtableInstanceName);
   }
 
   /** {@inheritDoc} */
@@ -422,14 +426,7 @@ public class BigtableAdmin extends AbstractBigtableAdmin {
    */
   @Override
   public Future<Void> truncateTableAsync(TableName tableName, boolean preserveSplits) throws IOException {
-   if (!preserveSplits) {
-      LOG.info("truncate will preserveSplits. The passed in variable is ignored.");
-   }
-   DropRowRangeRequest.Builder deleteRequest = DropRowRangeRequest.newBuilder().setDeleteAllDataFromTable(true);
-   return FutureUtils.toCompletableFuture(
-        bigtableTableAdminClient
-          .dropRowRangeAsync(deleteRequest.setName(toBigtableName(tableName)).build()))
-        .thenApply(r -> null);
+    return bigtableAdminAdaptor.truncateTableAsync(tableName, preserveSplits);
   }
   /* ******* Unsupported methods *********** */
 
